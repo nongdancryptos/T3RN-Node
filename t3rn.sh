@@ -6,20 +6,29 @@ BLUE='\033[0;34m'
 ORANGE='\033[38;5;214m'
 NC='\033[0m' # No Color
 
-echo ">>============================================================<<"
-echo "||      ██████╗ ███╗   ██╗    ████████╗ ██████╗ ██████╗       ||"
-echo "||     ██╔═══██╗████╗  ██║    ╚══██╔══╝██╔═══██╗██╔══██╗      ||"
-echo "||     ██║   ██║██╔██╗ ██║       ██║   ██║   ██║██████╔╝      ||"
-echo "||     ██║   ██║██║╚██╗██║       ██║   ██║   ██║██╔═══╝       ||"
-echo "||     ╚██████╔╝██║ ╚████║       ██║   ╚██████╔╝██║           ||"
-echo "||      ╚═════╝ ╚═╝  ╚═══╝       ╚═╝    ╚═════╝ ╚═╝           ||"
-echo ">>============================================================<<"
-
-sleep 3
-
-# Log file for debugging
-LOG_FILE="setup.log"
-exec > >(tee -a "$LOG_FILE") 2>&1
+# Define missing message variables
+MSG_KILLING_EXECUTOR="Đang tắt quá trình executor..."
+MSG_EXECUTOR_KILLED="Quá trình executor đã bị tắt."
+MSG_NO_EXECUTOR_RUNNING="Không có quá trình executor nào đang chạy."
+MSG_JQ_REQUIRED="Cần có jq để xử lý JSON. Đang cài đặt jq..."
+MSG_JQ_INSTALL_FAILED="Cài đặt jq thất bại."
+MSG_JQ_INSTALL_SUCCESS="Cài đặt jq thành công."
+MSG_INVALID_LANG="Mã ngôn ngữ không hợp lệ. Vui lòng thử lại."
+MSG_VERSION_CHOICE="Chọn phiên bản để cài đặt:"
+MSG_LATEST_OPTION="1) Phiên bản mới nhất"
+MSG_SPECIFIC_OPTION="2) Phiên bản cụ thể"
+MSG_ENTER_VERSION="Nhập số phiên bản bạn muốn cài đặt (ví dụ: v0.51.0):"
+MSG_INVALID_VERSION_CHOICE="Lựa chọn không hợp lệ. Vui lòng nhập 1 hoặc 2"
+MSG_CLEANUP="Đang dọn dẹp các cài đặt trước..."
+MSG_DOWNLOAD="Đang tải bản phát hành mới nhất..."
+MSG_EXTRACT="Đang giải nén..."
+MSG_INVALID_INPUT="Dữ liệu không hợp lệ. Vui lòng nhập 'api' hoặc 'rpc'."
+MSG_PRIVATE_KEY="Nhập khóa riêng ví của bạn"
+MSG_GAS_VALUE="Nhập giá trị gas (phải là số nguyên từ 100 đến 20000)"
+MSG_INVALID_GAS="Lỗi: Giá trị gas phải nằm trong khoảng từ 100 đến 20000."
+MSG_NODE_TYPE="Bạn muốn chạy node API hay node RPC? (api/rpc)"
+MSG_RPC_ENDPOINTS="Bạn có muốn thêm điểm cuối RPC công cộng tùy chỉnh? (y/n)"
+MSG_THANKS="Nếu script này giúp bạn, đừng quên để lại ⭐ trên GitHub 😉..."
 
 # Function to display usage instructions
 usage() {
@@ -76,6 +85,13 @@ install_jq_if_needed() {
     fi
 }
 
+# Function to parse custom RPC input
+parse_rpc_input() {
+    local rpc_input="$1"
+    IFS=',' read -r -a endpoints <<< "$rpc_input"
+    jq -n --argjson endpoints "$(echo "${endpoints[@]}" | jq -s .)" '{endpoints: $endpoints}'
+}
+
 # Parse command-line arguments
 VERBOSE=false
 DRY_RUN=false
@@ -108,7 +124,7 @@ fi
 # Dry-run mode message
 if $DRY_RUN; then
     echo -e "${ORANGE}Dry-run mode enabled. No changes will be made.${NC}"
-	sleep 1
+    sleep 1
 fi
 
 # Function to ask for user input
@@ -122,49 +138,15 @@ ask_for_input() {
 
 # Language selection
 while true; do
-    # Define MSG_INVALID_LANG for all cases
-    MSG_INVALID_LANG="Invalid language code. Please try again."
     echo -e "${GREEN}Select your language: English (en) or Vietnamese (vi):${NC}"
-    echo -e "${ORANGE}English (en)${NC}"
-    echo -e "${ORANGE}Vietnamese (vi)${NC}"
     read -p "Enter language code (e.g., en, vi): " LANG_CODE
     
 	# Language-specific strings
     case "$LANG_CODE" in
         en)
-            MSG_VERSION_CHOICE="Select version to install:"
-            MSG_LATEST_OPTION="1) Latest version"
-            MSG_SPECIFIC_OPTION="2) Specific version"
-            MSG_ENTER_VERSION="Enter the version number you want to install (e.g., v0.51.0):"
-            MSG_INVALID_VERSION_CHOICE="Invalid choice. Please enter 1 or 2"
-            MSG_CLEANUP="Cleaning up previous installations..."
-            MSG_DOWNLOAD="Downloading the latest release..."
-            MSG_EXTRACT="Extracting the archive..."
-            MSG_INVALID_INPUT="Invalid input. Please enter 'api' or 'rpc'."
-            MSG_PRIVATE_KEY="Enter your wallet private key"
-            MSG_GAS_VALUE="Enter the gas value (must be an integer between 100 and 20000)"
-            MSG_INVALID_GAS="Error: Gas value must be between 100 and 20000."
-            MSG_NODE_TYPE="Do you want to run an API node or RPC node? (api/rpc)"
-            MSG_RPC_ENDPOINTS="Do you want to add custom public RPC endpoints? (y/n)"
-            MSG_THANKS="If this script helped you, don't forget to give a ⭐ on GitHub 😉..."
             break
             ;;
         vi)
-            MSG_VERSION_CHOICE="Chọn phiên bản để cài đặt:"
-            MSG_LATEST_OPTION="1) Phiên bản mới nhất"
-            MSG_SPECIFIC_OPTION="2) Phiên bản cụ thể"
-            MSG_ENTER_VERSION="Nhập số phiên bản bạn muốn cài đặt (ví dụ: v0.51.0):"
-            MSG_INVALID_VERSION_CHOICE="Lựa chọn không hợp lệ. Vui lòng nhập 1 hoặc 2"
-            MSG_CLEANUP="Đang dọn dẹp các cài đặt trước..."
-            MSG_DOWNLOAD="Đang tải bản phát hành mới nhất..."
-            MSG_EXTRACT="Đang giải nén..."
-            MSG_INVALID_INPUT="Dữ liệu không hợp lệ. Vui lòng nhập 'api' hoặc 'rpc'."
-            MSG_PRIVATE_KEY="Nhập khóa riêng ví của bạn"
-            MSG_GAS_VALUE="Nhập giá trị gas (phải là số nguyên từ 100 đến 20000)"
-            MSG_INVALID_GAS="Lỗi: Giá trị gas phải nằm trong khoảng từ 100 đến 20000."
-            MSG_NODE_TYPE="Bạn muốn chạy node API hay node RPC? (api/rpc)"
-            MSG_RPC_ENDPOINTS="Bạn có muốn thêm điểm cuối RPC công cộng tùy chỉnh? (y/n)"
-            MSG_THANKS="Nếu script này giúp bạn, đừng quên để lại ⭐ trên GitHub 😉..."
             break
             ;;
         *)
@@ -177,93 +159,25 @@ done
 echo -e "${GREEN}$MSG_CLEANUP${NC}"
 if $DRY_RUN; then
     echo -e "${ORANGE}$MSG_DRY_RUN_DELETE${NC}"
-	sleep 1
+    sleep 1
 else
     if [ -d "t3rn" ]; then
         echo -e "${ORANGE}$MSG_DELETE_T3RN_DIR${NC}"
         rm -rf t3rn
     fi
-	
-	sleep 1
-
-    if [ -d "executor" ]; then
-        echo -e "${ORANGE}$MSG_DELETE_EXECUTOR_DIR${NC}"
-        rm -rf executor
-    fi
-	
-	sleep 1
-	
-    if ls executor-linux-*.tar.gz 1> /dev/null 2>&1; then
-        echo -e "${ORANGE}$MSG_DELETE_TAR_GZ${NC}"
-        rm -f executor-linux-*.tar.gz
-    fi
-	
-	sleep 1
-fi
-
-# Step 1: Create and navigate to t3rn directory
-echo -e "${ORANGE}$MSG_CREATE_DIR${NC}"
-if $DRY_RUN; then
-    echo -e "${GREEN}$MSG_DRY_RUN_CREATE_DIR${NC}"
-else
-    mkdir -p t3rn
-    cd t3rn || { echo -e "${RED}$MSG_FAILED_CREATE_DIR${NC}"; exit 1; }
-fi
-
-# Step 2.5: Version selection
-echo -e "${GREEN}${MSG_VERSION_CHOICE}${NC}"
-echo -e " ${ORANGE}${MSG_LATEST_OPTION}${NC}"
-echo -e " ${ORANGE}${MSG_SPECIFIC_OPTION}${NC}"
-
-while true; do
-    read -p "$(echo -e "${GREEN}${MSG_SELECT_NODE_TYPE}${NC}")" VERSION_CHOICE
     
-    case $VERSION_CHOICE in
-        1)
-            LATEST_TAG=$(curl -s https://api.github.com/repos/t3rn/executor-release/releases/latest | grep -Po '"tag_name": "\K.*?(?=")')
-            [ -z "$LATEST_TAG" ] && { echo -e "${RED}$MSG_FAILED_FETCH_TAG${NC}"; exit 1; }
-            break
-            ;;
-        2)
-            while true; do
-                echo -e "${GREEN}${MSG_ENTER_VERSION}${NC}"
-                read LATEST_TAG
-                [[ "$LATEST_TAG" =~ ^v[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] && break
-                echo -e "${RED}${MSG_INVALID_VERSION_FORMAT}${NC}"
-            done
-            break
-            ;;
-        *)
-            echo -e "${RED}${MSG_INVALID_VERSION_CHOICE}${NC}"
-            ;;
-    esac
-done
-
-# Step 0: Clean up previous installations
-echo -e "${GREEN}$MSG_CLEANUP${NC}"
-if $DRY_RUN; then
-    echo -e "${ORANGE}$MSG_DRY_RUN_DELETE${NC}"
     sleep 1
-else
-    if [ -d "t3rn" ]; then
-        echo -e "${ORANGE}$MSG_DELETE_T3RN_DIR${NC}"
-        rm -rf t3rn
-    fi
-
-    sleep 1
-
     if [ -d "executor" ]; then
         echo -e "${ORANGE}$MSG_DELETE_EXECUTOR_DIR${NC}"
         rm -rf executor
     fi
-
+    
     sleep 1
-
     if ls executor-linux-*.tar.gz 1> /dev/null 2>&1; then
         echo -e "${ORANGE}$MSG_DELETE_TAR_GZ${NC}"
         rm -f executor-linux-*.tar.gz
     fi
-
+    
     sleep 1
 fi
 
@@ -276,14 +190,14 @@ else
     cd t3rn || { echo -e "${RED}$MSG_FAILED_CREATE_DIR${NC}"; exit 1; }
 fi
 
-# Step 2.5: Version selection
+# Step 2: Version selection
 echo -e "${GREEN}${MSG_VERSION_CHOICE}${NC}"
 echo -e " ${ORANGE}${MSG_LATEST_OPTION}${NC}"
 echo -e " ${ORANGE}${MSG_SPECIFIC_OPTION}${NC}"
 
 while true; do
-    read -p "$(echo -e "${GREEN}${MSG_SELECT_NODE_TYPE}${NC}")" VERSION_CHOICE
-
+    read -p "$(echo -e "${GREEN}${MSG_ENTER_VERSION}${NC}")" VERSION_CHOICE
+    
     case $VERSION_CHOICE in
         1)
             LATEST_TAG=$(curl -s https://api.github.com/repos/t3rn/executor-release/releases/latest | grep -Po '"tag_name": "\K.*?(?=")')
@@ -455,6 +369,7 @@ if [[ "$CUSTOM_RPC" =~ ^[Yy]$ ]]; then
     echo -e "${ORANGE}$MSG_ENTER_CUSTOM_RPC${NC}"
     
     declare -A rpc_map=(
+
         ["arbt"]="Arbitrum Sepolia"
         ["bast"]="Base Sepolia"
         ["blst"]="Blast Sepolia"
@@ -550,4 +465,3 @@ else
     echo -e "${BLUE}$MSG_RUNNING_NODE${NC}"
     ./executor
 fi
-
